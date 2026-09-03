@@ -296,10 +296,23 @@
   }
 
   @media (max-width: 520px){
-    .player{gap:10px; padding:12px 14px 12px 12px;}
-    .player__btn{width:44px;height:44px;}
+    .player{
+      gap:10px;
+      padding:14px 16px 14px 14px;
+      width:min(94vw, 460px);
+    }
+    .player__btn{width:50px;height:50px;}
+    .player__btn svg{width:22px;height:22px;}
+    .navbtn{width:38px; height:38px; font-size:1.3rem;}
+    .player__track{font-size:.82rem; letter-spacing:.05em;}
+    .player__status{font-size:.74rem; gap:8px;}
+    .player__bars{height:13px;}
+    .player__bars i{width:3px;}
+    .player__dots i{width:6px; height:6px;}
     .player__vol{display:none;}
-    .title{top:5vh;}
+    .title__eyebrow{font-size:.68rem; letter-spacing:.34em;}
+    .title__name{font-size:clamp(1.5rem, 7.5vw, 2.1rem);}
+    .hint{font-size:.66rem;}
   }
 
   @media (prefers-reduced-motion: reduce){
@@ -314,7 +327,7 @@
   <div class="scene__scanlines"></div>
   <div class="scene__vignette"></div>
 
-  <header class="title">
+  <header class="title" id="titleBlock">
     <span class="title__eyebrow">welcome to</span>
     <h1 class="title__name">Ember Hollow</h1>
   </header>
@@ -365,6 +378,7 @@
     canvas.width = W * DPR;
     canvas.height = H * DPR;
     ctx.setTransform(DPR,0,0,DPR,0,0);
+    layoutUI();
   }
   window.addEventListener("resize", resize);
   resize();
@@ -381,6 +395,39 @@
       rw = W; rh = W / IMG_AR; rx = 0; ry = (H - rh) / 2;
     }
     return { x:rx, y:ry, w:rw, h:rh };
+  }
+
+  // keep the title and player hugging the visible artwork instead of
+  // floating in the letterbox bars on tall/narrow (mobile) screens
+  function layoutUI(){
+    var rect = getImageRect();
+    var titleBlock = document.getElementById("titleBlock");
+    var playerEl2 = document.getElementById("player");
+    var hintEl2 = document.getElementById("hint");
+    if(!titleBlock || !playerEl2) return;
+
+    var isMobile = W <= 520;
+
+    var minTop = H * 0.03;
+    var titleTop = Math.max(minTop, rect.y + rect.h * 0.07);
+    titleBlock.style.top = titleTop + "px";
+
+    var playerBottom;
+    if(isMobile){
+      // on phones, pin the control bar to the bottom of the screen
+      // itself rather than the letterboxed artwork, so it always
+      // reads as a fixed bottom UI bar
+      playerBottom = Math.max(16, H * 0.025);
+    } else {
+      var minBottom = H * 0.045;
+      playerBottom = Math.max(minBottom, H - (rect.y + rect.h * 0.93));
+    }
+    playerEl2.style.bottom = playerBottom + "px";
+    if(hintEl2){
+      // always sit just above the player bar, whatever its height/position
+      var playerH = playerEl2.offsetHeight || 80;
+      hintEl2.style.bottom = (playerBottom + playerH + 10) + "px";
+    }
   }
 
   // fire sits roughly at 57.5% across, 73.5% down the source art
