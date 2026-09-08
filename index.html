@@ -658,10 +658,64 @@
   var nextBtn = document.getElementById("nextBtn");
   var dotsEl = document.getElementById("trackDots");
 
-  trackConfigs.forEach(function(){
-    var dot = document.createElement("i");
-    dotsEl.appendChild(dot);
-  });
+  /* ---------------- birthday mode (title swap, until tonight midnight KST) ---------------- */
+  var BIRTHDAY_CUTOFF = new Date("2026-09-09T00:00:00+09:00").getTime();
+  function isBirthdayWindow(){
+    return Date.now() < BIRTHDAY_CUTOFF;
+  }
+  var titleNameEl = document.querySelector(".title__name");
+  var titleEyebrowEl = document.querySelector(".title__eyebrow");
+  function applyTitleMode(){
+    var birthday = isBirthdayWindow();
+    var text = birthday ? "Happy Birthday ONE ONE" : "Ember Hollow";
+    titleNameEl.textContent = text;
+    document.title = text;
+    titleEyebrowEl.textContent = birthday ? "I LOVE YOU" : "welcome to";
+  }
+  applyTitleMode();
+
+  // Before tonight's cutoff only track 5 ("Happy Birthday One One") is
+  // available; after the cutoff it drops out and tracks 1-4 return.
+  var activeTracks = [];
+
+  function refreshActiveTracks(){
+    activeTracks = isBirthdayWindow()
+      ? [trackConfigs[trackConfigs.length - 1]]
+      : trackConfigs.slice(0, trackConfigs.length - 1);
+
+    dotsEl.innerHTML = "";
+    activeTracks.forEach(function(){
+      var dot = document.createElement("i");
+      dotsEl.appendChild(dot);
+    });
+
+    var singleTrack = activeTracks.length <= 1;
+    prevBtn.disabled = singleTrack;
+    nextBtn.disabled = singleTrack;
+    prevBtn.style.visibility = singleTrack ? "hidden" : "";
+    nextBtn.style.visibility = singleTrack ? "hidden" : "";
+
+    currentTrackIndex = 0;
+    currentTrack = activeTracks[currentTrackIndex];
+    currentStep = 0;
+  }
+
+  refreshActiveTracks();
+
+  function applyMidnightTransition(){
+    applyTitleMode();
+    refreshActiveTracks();
+    renderTrackUI();
+    if(playing && actx){
+      var now = actx.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+      masterGain.gain.linearRampToValueAtTime(0.0001, now + 0.06);
+      nextNoteTime = now + 0.09;
+      window.setTimeout(setVolume, 90);
+    }
+  }
+  window.setTimeout(applyMidnightTransition, Math.max(0, BIRTHDAY_CUTOFF - Date.now() + 500));
 
   function renderTrackUI(){
     trackNameTextEl.textContent = currentTrack.name;
@@ -707,8 +761,9 @@
   renderTrackUI();
 
   function switchTrack(dir){
-    currentTrackIndex = (currentTrackIndex + dir + trackConfigs.length) % trackConfigs.length;
-    currentTrack = trackConfigs[currentTrackIndex];
+    if(activeTracks.length <= 1) return;
+    currentTrackIndex = (currentTrackIndex + dir + activeTracks.length) % activeTracks.length;
+    currentTrack = activeTracks[currentTrackIndex];
     currentStep = 0;
     renderTrackUI();
     if(playing && actx){
@@ -763,6 +818,24 @@
 
   volSlider.addEventListener("input", setVolume);
   volSlider.addEventListener("click", function(e){ e.stopPropagation(); });
+
+  // best-effort autoplay of the birthday track, today only. most browsers
+  // block audio until a user gesture, so this silently no-ops when blocked;
+  // the first-click handler below still starts the same birthday intro then.
+  (function attemptBirthdayAutoplay(){
+    if(!isBirthdayWindow()) return;
+    try{
+      if(!actx){
+        actx = new AudioCtx();
+        makeMaster();
+      }
+      actx.resume().then(function(){
+        if(actx.state === "running" && !playing){
+          beginPlayback();
+        }
+      }).catch(function(){});
+    }catch(e){}
+  })();
 
   // autoplay is blocked until user gesture: start on first click anywhere,
   // and reflect the muted state honestly until then.
